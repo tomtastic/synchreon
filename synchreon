@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# 20210923 - trcm - track parcels via synchreon courier
+
+[[ ! -n "$2" ]] && echo "Provide 'Delivery Reference' and 'Order number'!" && exit 1
+ORDER="$1"
+WEB_ORDER="$2"
+
+# Custom headers
+UA='User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36'
+
+# Synchreon pages
+SESSION_URL='https://seal.syncreon.com/synview-online.moc/360.syn/system_selection.p'
+VALIDATE_URL='https://seal.syncreon.com/synview-online.moc/360.syn/validate_login.p'
+TRACKING_URL='https://seal.syncreon.com/synview-online.moc/360.syn/synview_tracking.p'
+
+function get_session() {
+    # Get a session token from Synchreon
+    SESSION_REGEX='SESSIONID=([0-9A-F-]+)'
+    response=$(http GET "$SESSION_URL" SESSIONID=="$1" User-Agent:"$UA")
+    if [[ "$response" =~ $SESSION_REGEX ]]; then
+        match="${BASH_REMATCH[1]}"
+        echo "$match"
+    fi
+}
+
+echo "[+] Get session token" >&2
+session_id=$(get_session "$session_id")
+
+echo "[+] Confirm session token" >&2
+session_id=$(get_session "$session_id")
+
+echo "[+] Post order details for our parcel" >&2
+http --form POST "$VALIDATE_URL" User-Agent:"$UA" Referer:"${SESSION_URL}?SESSIONID=${session_id}" SESSIONID=="$session_id" order_no="$ORDER" web_order_no="$WEB_ORDER" field_displayed="wo" --quiet
+
+echo "[+] Get tracking details" >&2
+tracking=$(http GET "$TRACKING_URL" User-Agent:"$UA" Referer:"${REFERER_URL}?SESSIONID=${session_id}" SESSIONID=="$session_id")
+printf "\x1b[38;2;255;100;0m%s\x1b[0m\n" "$(echo "$tracking" | grep 'cell_data' | sed 's|<[^>]*>| |g')"
